@@ -2,9 +2,9 @@ From BootstrapExp.utils Require Import Core.
 From BootstrapExp.functional Require Import FunSyntax FunSemantics FunValues FunEnv.
 
 Lemma Eval_deterministic funs : forall e env a1v,
-  funs; env |-- e ---> a1v ->
+  funs & env |-- e ---> a1v ->
   forall a2v,
-    funs; env |-- e ---> a2v ->
+    funs & env |-- e ---> a2v ->
     a1v = a2v.
 Proof.
   induction 1; inversion 1; simpl in *; subst; try congruence.
@@ -41,9 +41,9 @@ Ltac cleanup :=
   end.
 
 Lemma Call_eq funs: forall fname xs env a1v,
-  funs; env |-- [Call fname xs] ---> a1v <->
+  funs & env |-- [Call fname xs] ---> a1v <->
   exists vs v,
-    funs; env |-- xs ---> vs /\
+    funs & env |-- xs ---> vs /\
     eval_app funs fname vs v /\ a1v = [v].
 Proof.
   repeat split; intros; try inversion H; subst; try constructor.
@@ -65,40 +65,40 @@ Proof.
 Qed.
 
 Theorem Eval_eq :
-  (forall funs env a1vs, funs; env |-- [] ---> a1vs <-> a1vs = []) /\
+  (forall funs env a1vs, funs & env |-- [] ---> a1vs <-> a1vs = []) /\
   (forall funs y xs x env a1vs,
-     funs; env |-- x :: y :: xs ---> a1vs <->
+     funs & env |-- x :: y :: xs ---> a1vs <->
      exists v vs,
        a1vs = v::vs /\
-       (funs; env |-- [x] ---> [v]) /\
-       (funs; env |-- y :: xs ---> vs)) /\
-  (forall funs v env a1vs, funs; env |-- [Const v] ---> a1vs <-> a1vs = [Num v]) /\
+       (funs & env |-- [x] ---> [v]) /\
+       (funs & env |-- y :: xs ---> vs)) /\
+  (forall funs v env a1vs, funs & env |-- [Const v] ---> a1vs <-> a1vs = [Num v]) /\
   (forall funs n env a1vs,
-     funs; env |-- [Var n] ---> a1vs <->
+     funs & env |-- [Var n] ---> a1vs <->
      exists v, a1vs = [v] /\ FEnv.lookup env n = Some v) /\
   (forall funs xs f env a1vs,
-     funs; env |-- [Op f xs] ---> a1vs <->
+     funs & env |-- [Op f xs] ---> a1vs <->
      exists vs v,
        a1vs = [v] /\
-       funs; env |-- xs ---> vs /\
+       funs & env |-- xs ---> vs /\
        eval_op f vs = Res v) /\
   (forall funs y x n env a1vs,
-     funs; env |-- [Let n x y] ---> a1vs <->
+     funs & env |-- [Let n x y] ---> a1vs <->
      exists v1 v2,
        a1vs = [v2] /\
-       funs; env |-- [x] ---> [v1] /\
-       funs; (FEnv.insert (n, Some v1) env) |-- [y] ---> [v2]) /\
+       funs & env |-- [x] ---> [v1] /\
+       funs & (FEnv.insert (n, Some v1) env) |-- [y] ---> [v2]) /\
   (forall funs z y xs test env a1vs,
-     funs; env |-- [If test xs y z] ---> a1vs <->
+     funs & env |-- [If test xs y z] ---> a1vs <->
      exists vs b v,
        a1vs = [v] /\
-       funs; env |-- xs ---> vs /\
+       funs & env |-- xs ---> vs /\
        take_branch test vs = Res b /\
-       funs; env |-- [if b then y else z] ---> [v]) /\
+       funs & env |-- [if b then y else z] ---> [v]) /\
   (forall funs xs fname env a1vs,
-     funs; env |-- [Call fname xs] ---> a1vs <->
+     funs & env |-- [Call fname xs] ---> a1vs <->
      exists vs v,
-       funs; env |-- xs ---> vs /\
+       funs & env |-- xs ---> vs /\
        eval_app funs fname vs v /\
        a1vs = [v]).
 Proof.
@@ -128,69 +128,69 @@ Proof.
     eexists _, _; eauto.
 Qed.
 
-Lemma Eval_eq_Nil funs : forall env a1v, funs; env |-- [] ---> a1v <-> a1v = [].
+Lemma Eval_eq_Nil funs : forall env a1v, funs & env |-- [] ---> a1v <-> a1v = [].
 Proof.
   edestruct Eval_eq; eauto.
 Qed.
 
 Lemma Eval_eq_Cons funs : forall y xs x env a1v,
-  funs; env |-- x :: y :: xs ---> a1v <->
+  funs & env |-- x :: y :: xs ---> a1v <->
   exists v vs,
     a1v = v::vs /\
-    (funs; env |-- [x] ---> [v]) /\
-    (funs; env |-- y :: xs ---> vs).
+    (funs & env |-- [x] ---> [v]) /\
+    (funs & env |-- y :: xs ---> vs).
 Proof.
   apply Eval_eq.
 Qed.
 
 Lemma Eval_eq_Const funs : forall v env a1v,
-  funs; env |-- [Const v] ---> a1v <-> a1v = [Num v].
+  funs & env |-- [Const v] ---> a1v <-> a1v = [Num v].
 Proof.
   apply Eval_eq.
 Qed.
 
 Lemma Eval_eq_Var : forall funs n env a1vs,
-     funs; env |-- [Var n] ---> a1vs <->
+     funs & env |-- [Var n] ---> a1vs <->
      exists v, a1vs = [v] /\ FEnv.lookup env n = Some v.
 Proof.
   apply Eval_eq.
 Qed.
 
 Lemma Eval_eq_Op : forall funs xs f env a1vs,
-     funs; env |-- [Op f xs] ---> a1vs <->
+     funs & env |-- [Op f xs] ---> a1vs <->
      exists vs v,
        a1vs = [v] /\
-       funs; env |-- xs ---> vs /\
+       funs & env |-- xs ---> vs /\
        eval_op f vs = Res v.
 Proof.
   apply Eval_eq.
 Qed.
 
 Lemma Eval_eq_Let : forall funs y x n env a1vs,
-     funs; env |-- [Let n x y] ---> a1vs <->
+     funs & env |-- [Let n x y] ---> a1vs <->
      exists v1 v2,
        a1vs = [v2] /\
-       funs; env |-- [x] ---> [v1] /\
-       funs; (FEnv.insert (n, Some v1) env) |-- [y] ---> [v2].
+       funs & env |-- [x] ---> [v1] /\
+       funs & (FEnv.insert (n, Some v1) env) |-- [y] ---> [v2].
 Proof.
   apply Eval_eq.
 Qed.
 
 Lemma Eval_eq_If : forall funs z y xs test env a1vs,
-     funs; env |-- [If test xs y z] ---> a1vs <->
+     funs & env |-- [If test xs y z] ---> a1vs <->
      exists vs b v,
        a1vs = [v] /\
-       funs; env |-- xs ---> vs /\
+       funs & env |-- xs ---> vs /\
        take_branch test vs = Res b /\
-       funs; env |-- [if b then y else z] ---> [v].
+       funs & env |-- [if b then y else z] ---> [v].
 Proof.
   apply Eval_eq.
 Qed.
 
 Lemma Eval_eq_Call : forall funs xs fname env a1vs,
-     funs; env |-- [Call fname xs] ---> a1vs <->
+     funs & env |-- [Call fname xs] ---> a1vs <->
      exists vs v,
-       funs; env |-- xs ---> vs /\
+       funs & env |-- xs ---> vs /\
        eval_app funs fname vs v /\
        a1vs = [v].
 Proof.
@@ -229,9 +229,9 @@ Qed.
 
 Theorem delete_env_update :
   forall funs env xs vs n x,
-   funs; env |-- xs ---> vs ->
+   funs & env |-- xs ---> vs ->
     ~ In n (flat_map free_vars xs) ->
-    funs; (FEnv.insert (n, x) env) |-- xs ---> vs.
+    funs & (FEnv.insert (n, x) env) |-- xs ---> vs.
 Proof.
   intros funs env xs vs n x H Hnotin.
   induction H; subst; simpl flat_map in *.
@@ -272,7 +272,7 @@ Qed.
 Theorem remove_env_update :
   forall funs n x0 env v res,
   ~ In n (free_vars x0) ->
-  funs; (FEnv.insert (n, v) env) |-- [x0] ---> res <-> funs; env |-- [x0] ---> res.
+  funs & (FEnv.insert (n, v) env) |-- [x0] ---> res <-> funs & env |-- [x0] ---> res.
 Proof.
   intros funs n x0 env v res Hnotin.
   split; intros H.
