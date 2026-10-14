@@ -1,0 +1,14 @@
+.*.aux
+.lia.cache
+*.glob
+*.vo
+*.vok
+*.vos
+*~
+.*.d
+**/RocqMakefile
+**/RocqMakefile.conf
+result
+
+# Emacs
+.emacs
