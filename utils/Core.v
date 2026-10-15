@@ -10,6 +10,10 @@ From Stdlib.Unicode Require Export Utf8.
 
 (** d/let *)
 
+(* Due to a bug in Trocq,  *)
+
+Definition dlet {A B} (x: A) (f: A -> B) : B := f x.
+
 Notation "'let/d' x := val 'in' body" :=
   (dlet val (fun x => body))
   (at level 200, x name, body at level 200).
