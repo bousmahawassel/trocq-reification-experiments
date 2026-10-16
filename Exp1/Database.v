@@ -124,6 +124,19 @@ Qed.
 
 Definition mul_exp (e e': exp) := Op Mul [e; e'].
 
+Lemma Eval_eq_mul_exp funs env e e' vs :
+  funs & env |-- [mul_exp e e'] ---> vs <->
+    exists n m, funs & env |-- [e] ---> [Num n] /\ funs & env |-- [e'] ---> [Num m] /\ vs = [Num (n * m)].
+Proof.
+  unfold mul_exp. rewrite Eval_eq_Op.
+  split.
+  - intros [vs' [v [? [Heval Heval_op]]]]. subst. apply Eval_eq_Cons in Heval as [v' [vs [? [He He']]]]. subst.
+    simpl in *. destruct v' as [|n], vs as [|[|m] []]; try discriminate. inversion Heval_op. subst. clear Heval_op.
+    exists n, m. intuition.
+  - intros [n [m [He [He' Heq]]]]. subst. eexists [Num n; Num m], _. intuition auto.
+    apply Eval_eq_Cons. eexists _, _; intuition.
+Qed.
+
 Definition RmulN_tmp funs env n e (H: Rref_tmp funs env N n e) m e' (H': Rref_tmp funs env N m e') :
   Rref_tmp funs env N (n * m) (mul_exp e e').
 Proof.
@@ -256,8 +269,6 @@ Module Demos.
     Trocq Use Rnat R0nat RSnat Rplusnat.
     Trocq Use Rexp Rnat01.
 
-    Set Universe Polymorphism.
-
     Definition f1_derived : sigT (nat_rel f1).
       unfold f1. trocq.
       exists (Let 0 (Const 2) (plus_exp (Var 0) (Const 1))).
@@ -279,5 +290,89 @@ Module Demos.
     Definition f1_res : nat_rel f1 f1_prog := projT2 f1_derived.
 
   End Simple.
+
+  Module NRFunction.
+
+    Definition f_four (n: N) :=
+      let/d n2 := n * n in
+      n2 * n2.
+
+    Section reify_body.
+      
+      Context (n: N) (x : name := 0). 
+      (* for simplicity of the translation, we chose a specific value for x; otherwise we would need to
+         have a procedure to pick a `y` different from x, which would pollute the proof *)
+      Definition funs : defunEnv := [].
+      Definition env := FEnv.insert_some (x, encode n) FEnv.empty.
+
+      Definition Nrel : N -> exp -> Type := Rref_rel_tmp funs env N.
+
+      Definition RN : Param00.Rel N exp := Rref_tmp funs env N.
+
+      Definition R0N : RN 0 O_exp := R0N_tmp funs env.
+      Definition RmulN : forall n e, RN n e -> forall m e', RN m e' -> RN (n * m) (mul_exp e e') :=
+        RmulN_tmp funs env.
+
+      Definition var_n : exp := Var x.
+
+      Lemma Eval_eq_var_n vs : funs & env |-- [var_n] ---> vs <-> vs = [Num n].
+      Proof.
+        split.
+        - intro Hvar. apply Eval_eq_Var in Hvar as [v [? Henv]]. subst. f_equal.
+          unfold env, FEnv.insert_some in Henv. rewrite FEnv.lookup_insert_eq in Henv. simpl in *. inversion Henv; auto.
+        - intro. subst. apply Eval_eq_Var. eexists; split; auto.
+      Qed.
+
+      Definition Rn : RN n var_n.
+        apply Eval_eq_var_n. auto.
+      Qed.
+
+      Definition exp_rel : exp -> exp -> Type := Rexp_rel_tmp funs env.
+
+      Definition Rexp : Param02a.Rel exp exp := Rexp_tmp funs env.
+
+      Definition exp_rel_term : exp -> exp -> Type := exp_rel_term_tmp funs env.
+
+      Definition RN01 : 
+        forall n res, RN n res -> forall e e', Rexp e e' -> Param01.Rel (Nrel n e) (exp_rel_term res e') :=
+        Rref_tmp01 funs env.
+
+      Trocq Use RN R0N RmulN Rn.
+      Trocq Use Rexp RN01.
+
+      Definition f_four_body_derived : sigT (Nrel (f_four n)).
+        unfold f_four. trocq.
+        exists (Let 1 (mul_exp var_n var_n) (mul_exp (Var 1) (Var 1))).
+        pose proof (fun vs => proj2 (Eval_eq_var_n vs)).
+        eexists.
+        split.
+        - simpl. apply Eval_eq_mul_exp. eexists _, _. intuition auto.
+          + apply Eval_eq_mul_exp. eexists _, _. intuition auto.
+          + apply Eval_eq_mul_exp. eexists _, _. intuition auto.
+        - apply Eval_eq_Let. eexists _, _. intuition auto.
+          + apply Eval_eq_mul_exp. eexists _, _. intuition auto.
+          + apply Eval_eq_mul_exp. eexists _, _. split; [|split].
+            * apply Eval_eq_Var. eexists. split; auto. reflexivity.
+            * apply Eval_eq_Var. eexists. split; auto. reflexivity.
+            * reflexivity.
+      Defined.
+
+      Definition f_four_body_prog := Eval compute in projT1 f_four_body_derived.
+      Definition f_four_body_spec : Nrel (f_four n) f_four_body_prog := projT2 f_four_body_derived.
+
+    End reify_body.
+
+    Definition f_four_defun : defun :=
+      Defun 0 [0] f_four_body_prog.
+
+    Definition funs' := [f_four_defun].
+
+    Lemma eval_app_f_four_defun n : eval_app funs' 0 [encode n] (encode (f_four n)).
+    Proof.
+      econstructor. { reflexivity. } simpl. apply insert_new_fun; auto.
+      apply f_four_body_spec.
+    Qed.
+
+  End NRFunction.
     
 End Demos.

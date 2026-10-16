@@ -287,3 +287,33 @@ Proof.
     rewrite app_nil_r.
     assumption.
 Qed.
+
+Theorem insert_new_var funs env n v es vs :
+  FEnv.lookup env n = None -> funs & env |-- es ---> vs -> funs & FEnv.insert (n, v) env |-- es ---> vs.
+Proof.
+  induction 2; econstructor; eauto.
+  - rewrite FEnv.lookup_insert_neq; auto. intro Heq. subst. congruence.
+  - destruct (N.eq_dec n n0).
+    + subst. rewrite FEnv.insert_insert_eq. auto.
+    + rewrite FEnv.insert_insert_neq; auto. apply IHeval2. rewrite FEnv.lookup_insert_neq; auto.
+Qed.
+
+Fixpoint called_funcs (e: exp) : list name :=
+  match e with
+  | Const _ | Var _ => []    
+  | Op _ xs => flat_map called_funcs xs
+  | Let n x y => called_funcs x ++ called_funcs y
+  | If _ xs y z => flat_map called_funcs xs ++ called_funcs y ++ called_funcs z
+  | Call n xs => n::flat_map called_funcs xs
+  end.
+
+Definition defun_name (f: defun): name := match f with Defun n _ _ => n end.
+
+Theorem insert_new_fun funs env f es vs :
+  lookup_fun (defun_name f) funs = None -> funs & env |-- es ---> vs -> (f::funs) & env |-- es ---> vs.
+Proof.
+  intro Hnotin.
+  induction 1; econstructor; eauto. revert ENV_BODY. clear -Hnotin. unfold env_and_body. simpl.
+  destruct f; simpl in *. pose proof (H:= N.eqb_spec n fname). destruct (_ =? _); inversion_clear H; auto.
+  subst. rewrite Hnotin. discriminate.
+Qed.
