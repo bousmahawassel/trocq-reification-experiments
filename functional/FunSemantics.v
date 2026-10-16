@@ -19,12 +19,12 @@ Inductive result {A : Type} : Type :=
   | Err (e : err).
 Arguments result : clear implicits.
 
-Definition defunEnv := list FunSyntax.defun.
+Definition defunEnv := list defun.
 
 Definition fail {A}: result A :=
   Err Crash.
 
-Definition eval_op (f : FunSyntax.op) (vs : list Value): result Value :=
+Definition eval_op (f : op) (vs : list Value): result Value :=
   match f, vs with
   | FunSyntax.Add, [Num n1; Num n2] => Res (Num (n1 + n2))
   | FunSyntax.Sub, [Num n1; Num n2] => Res (Num (n1 - n2))
@@ -37,7 +37,7 @@ Definition eval_op (f : FunSyntax.op) (vs : list Value): result Value :=
   | _, _ => fail
   end.
 
-Definition take_branch (test : FunSyntax.test) (vs : list Value): result bool :=
+Definition take_branch (test : test) (vs : list Value): result bool :=
   match test, vs with
   | FunSyntax.Equal, [Pair x y; Num 0] => Res false
   | FunSyntax.Equal, [Num m; Num n] => Res (m =? n)
@@ -52,16 +52,18 @@ Fixpoint make_env (keys : list name) (values : list Value) (acc : FEnv.env) : FE
   | _, _ => acc
   end.
 
-Fixpoint lookup_fun (n : name) (fs : defunEnv) : option (list name * FunSyntax.exp) :=
+Definition def_name (def: defun) : name := match def with Defun n _ _ => n end.
+
+Fixpoint lookup_fun (n : name) (fs : defunEnv) : option defun :=
   match fs with
   | [] => None
-  | Defun k ps body :: rest => if (k =? n)%N then Some (ps, body) else lookup_fun n rest
+  | def :: rest => if (def_name def =? n)%N then Some def else lookup_fun n rest
   end.
 
 Definition env_and_body (n : name) (args : list Value) (s : defunEnv) : option (FEnv.env * exp) :=
   match lookup_fun n s with
   | None => None
-  | Some (params, body) => 
+  | Some (Defun _ params body) => 
       if (List.length params =? List.length args)%nat then Some (make_env params args FEnv.empty, body) else None
   end.
 

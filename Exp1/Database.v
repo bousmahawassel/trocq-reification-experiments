@@ -109,11 +109,23 @@ Qed.
 
 Definition sub_exp (e e': exp) := Op Sub [e; e'].
 
+Lemma Eval_eq_sub_exp funs env e e' vs :
+  funs & env |-- [sub_exp e e'] ---> vs <->
+    exists n m, funs & env |-- [e] ---> [Num n] /\ funs & env |-- [e'] ---> [Num m] /\ vs = [Num (n - m)].
+Proof.
+  unfold sub_exp. rewrite Eval_eq_Op.
+  split.
+  - intros [vs' [v [? [Heval Heval_op]]]]. subst. apply Eval_eq_Cons in Heval as [v' [vs [? [He He']]]]. subst.
+    simpl in *. destruct v' as [|n], vs as [|[|m] []]; try discriminate. inversion Heval_op. subst. clear Heval_op.
+    exists n, m. intuition.
+  - intros [n [m [He [He' Heq]]]]. subst. eexists [Num n; Num m], _. intuition auto.
+    apply Eval_eq_Cons. eexists _, _; intuition.
+Qed.
+
 Definition RsubN_tmp funs env n e (H: Rref_tmp funs env N n e) m e' (H': Rref_tmp funs env N m e') :
   Rref_tmp funs env N (n - m) (sub_exp e e').
 Proof.
-  apply Eval_eq_Op. eexists [encode n; encode m], _. split; eauto. simpl. split; auto.
-  apply Eval_eq_Cons. eexists _, _. auto.
+  apply Eval_eq_sub_exp. eexists _, _. (intuition auto); assumption.
 Qed.
 
 Definition Rsubnat_tmp funs env n e (H: Rref_tmp funs env nat n e) m e' (H': Rref_tmp funs env nat m e') :
@@ -374,5 +386,176 @@ Module Demos.
     Qed.
 
   End NRFunction.
+
+  Module RecFunction.
+
+    Fixpoint fact (n: nat) : nat :=
+      match n with
+      | 0%nat => 1
+      | S n => S n * fact n
+      end.
+
+    Definition case0 := 1%nat.
+
+    Definition caseS (n: nat) (res: nat) : nat := S n * res.
+
+    Definition fact' : nat -> nat := nat_rect (fun _ => nat) case0 caseS.
+
+    Lemma fact_fact' n : fact n = fact' n.
+      unfold fact', case0, caseS. induction n; simpl; f_equal; auto.
+    Qed.
+
+    Module Case0Translation.
+
+      Section Case0.
+
+        Context (funs: defunEnv) (env: FEnv.env).
+        
+        Definition nat_rel : nat -> exp -> Type := Rref_rel_tmp funs env nat.
+        
+        Definition Rnat : Param00.Rel nat exp := Rref_tmp funs env nat.
+
+        Definition R0nat : Rnat 0%nat O_exp := R0nat_tmp funs env.
+        Definition RSnat : forall n e, Rnat n e -> Rnat (S n) (S_exp e) := RSnat_tmp funs env.
+        Definition Rplusnat : forall n e, Rnat n e -> forall m e', Rnat m e' -> Rnat (n + m)%nat (plus_exp e e') :=
+          Rplusnat_tmp funs env.
+        Definition Rmulnat : forall n e, Rnat n e -> forall m e', Rnat m e' -> Rnat (n * m)%nat (mul_exp e e') :=
+          Rmulnat_tmp funs env.
+
+        Definition exp_rel : exp -> exp -> Type := Rexp_rel_tmp funs env.
+
+        Definition Rexp : Param02a.Rel exp exp := Rexp_tmp funs env.
+
+        Definition exp_rel_term : exp -> exp -> Type := exp_rel_term_tmp funs env.
+
+        Definition Rnat01 : 
+          forall n res, Rnat n res -> forall e e', Rexp e e' -> Param01.Rel (nat_rel n e) (exp_rel_term res e') :=
+          Rref_tmp01 funs env.
+
+        Trocq Use Rnat R0nat RSnat Rplusnat Rmulnat.
+        Trocq Use Rexp Rnat01.
+
+        Definition case0_derived : sigT (nat_rel case0).
+          unfold case0. trocq. exists (Const 1). exists (Num 1). split.
+          - apply Eval_eq_S_exp. eexists. split.
+            + apply Eval_eq_O_exp. auto.
+            + auto.
+          - apply Eval_eq_Const. auto.
+        Defined.
+
+        Definition case0_prog := Eval compute in projT1 case0_derived.
+
+        Definition case0_spec : nat_rel case0 case0_prog := projT2 case0_derived.
+
+      End Case0.
+
+    End Case0Translation.
+
+    Module CaseSTranslation.
+
+      Section CaseS.
+
+        Context (funs: defunEnv) (env: FEnv.env).
+        
+        Definition nat_rel : nat -> exp -> Type := Rref_rel_tmp funs env nat.
+        
+        Context (n: nat) (en: exp) (Hen: nat_rel n en) (res: nat) (eres: exp) (Heres: nat_rel res eres).
+        
+        Definition Rnat : Param00.Rel nat exp := Rref_tmp funs env nat.
+
+        Definition R0nat : Rnat 0%nat O_exp := R0nat_tmp funs env.
+        Definition Rn : Rnat n en := Hen.
+        Definition Rres : Rnat res eres := Heres.
+
+        Definition RSnat : forall n e, Rnat n e -> Rnat (S n) (S_exp e) := RSnat_tmp funs env.
+        Definition Rplusnat : forall n e, Rnat n e -> forall m e', Rnat m e' -> Rnat (n + m)%nat (plus_exp e e') :=
+          Rplusnat_tmp funs env.
+        Definition Rmulnat : forall n e, Rnat n e -> forall m e', Rnat m e' -> Rnat (n * m)%nat (mul_exp e e') :=
+          Rmulnat_tmp funs env.
+
+        Definition exp_rel : exp -> exp -> Type := Rexp_rel_tmp funs env.
+
+        Definition Rexp : Param02a.Rel exp exp := Rexp_tmp funs env.
+
+        Definition exp_rel_term : exp -> exp -> Type := exp_rel_term_tmp funs env.
+
+        Definition Rnat01 : 
+          forall n res, Rnat n res -> forall e e', Rexp e e' -> Param01.Rel (nat_rel n e) (exp_rel_term res e') :=
+          Rref_tmp01 funs env.
+
+        Trocq Use Rnat R0nat Rn Rres RSnat Rplusnat Rmulnat.
+        Trocq Use Rexp Rnat01.
+
+        Definition caseS_derived : sigT (nat_rel (caseS n res)).
+          unfold caseS. trocq. eexists _, _. eenough (e: _) by (exact (conj e e)).
+          apply Eval_eq_mul_exp. eexists _, _. split; [|split]; try reflexivity.
+          - apply Eval_eq_S_exp. eexists. split; try reflexivity. apply Hen.
+          - apply Heres.
+        Defined.
+
+        Definition caseS_prog := Eval compute in projT1 caseS_derived.
+
+        Definition caseS_spec : nat_rel (caseS n res) caseS_prog := projT2 caseS_derived.
+
+      End CaseS.
+
+    End CaseSTranslation.
+
+    Definition nat_rect_1arg_translation fun_name arg_name case0_exp caseS_exp :=
+        If Equal [Var arg_name; Const 0] case0_exp 
+          (Let 0 (sub_exp (Var arg_name) (Const 1)) (caseS_exp (Var 0) (Call fun_name [Var 0]))).
+
+    Lemma encode_nat_rect_1arg_spec {A} `{Refinable A} funs arg_name fun_name (case0: A) case0_exp 
+      (caseS: nat -> A -> A) (caseS_exp: exp -> exp -> exp) arg:
+        lookup_fun fun_name funs = 
+          Some (Defun fun_name [arg_name] (nat_rect_1arg_translation fun_name arg_name case0_exp caseS_exp))
+        -> (forall env, Rref_rel_tmp funs env A case0 case0_exp) ->
+        (forall env n e x e', Rref_rel_tmp funs env nat n e -> Rref_rel_tmp funs env A x e' -> 
+                              Rref_rel_tmp funs env A (caseS n x) (caseS_exp e e')) ->
+        eval_app funs fun_name [encode arg] (encode (nat_rect (fun _ => A) case0 caseS arg)).
+    Proof.
+      intros Hfun Hcase0 HcaseS. induction arg; econstructor.
+      1, 3: unfold env_and_body; rewrite Hfun; simpl; reflexivity.
+      - simpl. apply Eval_eq_If. eexists _, true, _. intuition auto.
+        + apply Eval_eq_Cons. eexists _, _. (intuition auto); [apply Eval_eq_Var | apply Eval_eq_Const]; auto.
+          eexists. intuition auto. apply FEnv.lookup_insert_eq.
+        + auto.
+        + apply Hcase0.
+      - simpl. apply Eval_eq_If. eexists _, false, _. intuition auto.
+        + apply Eval_eq_Cons. eexists _, _. (intuition auto); [apply Eval_eq_Var | apply Eval_eq_Const]; auto.
+          eexists. intuition auto. apply FEnv.lookup_insert_eq.
+        + auto.
+        + apply  Eval_eq_Let. eexists _, _. intuition; swap 1 2.
+          * apply HcaseS. { apply Eval_eq_Var. eexists. intuition eauto. } apply Eval_eq_Call.
+            eexists _, _. intuition eauto. apply Eval_eq_Var. eexists; eauto.
+          * apply Eval_eq_sub_exp. eexists _, _. intuition.
+            -- apply Eval_eq_Var. eexists. intuition auto. apply FEnv.lookup_insert_eq.
+            -- apply Eval_eq_Const. auto.
+            -- fold (N.of_nat (S arg)). change 1 with (N.succ 0). rewrite Nnat.Nat2N.inj_succ, N.sub_succ, N.sub_0_r.
+               auto.
+    Qed.
+
+    Definition fact'_derived : 
+      sigT (fun def => forall funs n, lookup_fun (defun_name def) funs = Some def -> 
+                                      eval_app funs (def_name def) [encode n] (encode (fact' n))).
+      eexists (Defun 0 [0] (nat_rect_1arg_translation _ _ _ _)). intros funs n H. unfold fact'.
+      eapply encode_nat_rect_1arg_spec; eauto.
+      - intro. apply Case0Translation.case0_spec.
+      - intros. apply CaseSTranslation.caseS_spec; eauto.
+    Defined.
+    
+    Definition fact_def := Eval compute in projT1 fact'_derived.
+
+    Definition fact'_def_spec : forall funs n,
+        lookup_fun (defun_name fact_def) funs = Some fact_def ->
+        eval_app funs (def_name fact_def) [encode n] (encode (fact' n)) := projT2 fact'_derived.
+    
+    Lemma fact_def_spec : forall funs n,
+        lookup_fun (defun_name fact_def) funs = Some fact_def ->
+        eval_app funs (def_name fact_def) [encode n] (encode (fact n)).
+      intros ? ?. rewrite fact_fact'. apply fact'_def_spec.
+    Qed.
+
+  End RecFunction.
     
 End Demos.
