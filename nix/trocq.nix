@@ -4,10 +4,10 @@
   fetchFromGitHub
 }:
 let trocq_src = fetchFromGitHub {
-    owner = "rocq-community";
+    owner = "VojtechStep";
     repo = "trocq";
-    rev = "a36529e66dfd3d255c51506943dbdac77adbee56";
-    hash = "sha256-wCgBs78eXg0UncmdzkhdE5Ncnq3s1XP3iNaMzGmgVYw=";
+    rev = "4e8f3c94d715e87b8af9a3ca6ed0823786da22d7";
+    hash = "sha256-BT+9XtnKjBCs5NNRAt0GMDdEv+XUIXpCNrmdgyQc1O4=";
   };
 in
 

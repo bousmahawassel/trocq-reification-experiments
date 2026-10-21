@@ -14,6 +14,7 @@ rocqPackages.mkRocqDerivation {
 
   propagatedBuildInputs = [
     rocqPackages.stdlib
+    rocqPackages.rocq-elpi
     trocq
     patat
     coqutil

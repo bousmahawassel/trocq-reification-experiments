@@ -39,6 +39,7 @@ let
       trocq
       patat
       coqutil
+      rocq-elpi
     ]
   );
 in
